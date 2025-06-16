@@ -34,26 +34,15 @@ private:
     // Waypoints [dx, dy, dphi] in robot frame
     switch (scene_number_) {
     case 1: // Simulation
-      waypoints_ = {{
-          {0.0, 1.0, 0.0},   // w1
-          {0.0, -1.0, 0.0},  // w2
-          {0.0, -1.0, 0.0},  // w3
-          {0.0, 1.0, 0.0},   // w4
-          {1.0, 1.0, 0.0},   // w5
-          {-1.0, -1.0, 0.0}, // w6
-          {1.0, -1.0, 0.0},  // w7
-          {-1.0, 1.0, 0.0},  // w8
-          {1.0, 0.0, 0.0},   // w9
-          {-1.0, 0.0, 0.0},  // w10
-      }};
+      waypoints_ = {{}};
       break;
 
     case 2: // CyberWorld
       waypoints_ = {{
-          {0.475, -0.02, 0.0},  // w1
-          {0.035, -1.255, 0.0}, // w2
-          {-0.035, 1.255, 0.0}, // w3
-          {-0.475, 0.02, 0.0},  // w4
+          {0.928, 0.0, 0.0},  // w1
+          {0.0, -0.596, 0.0}, // w2
+          {0.0, 0.596, 0.0},  // w3
+          {-0.928, 0.0, 0.0}, // w4
       }};
       break;
 
@@ -95,9 +84,8 @@ private:
     // Update target waypoint
     if (wp_reached_ || init_) {
       target_pose_ = current_pose_ + waypoints_[target_wp_];
-
-      wp_reached_ = false;
       init_ = false;
+      wp_reached_ = false;
       size_t twp = target_wp_ + 1;
       RCLCPP_INFO(this->get_logger(), "Moving to next waypoint: %ld", twp);
     }
@@ -159,24 +147,25 @@ private:
   size_t target_wp_;
   std::shared_ptr<rclcpp::Clock> clock_;
   Eigen::Vector3f current_pose_{0.0, 0.0, 0.0};
+  Eigen::Vector3f cyw_start_pose_{0.0, 0.0, 0.0};
   Eigen::Vector3f target_pose_{0.0, 0.0, 0.0};
   Eigen::Vector3f prev_error_{0.0, 0.0, 0.0};
   Eigen::Vector3f integral_error_{0.0, 0.0, 0.0};
-  std::array<Eigen::Vector3f, 10> waypoints_;
+  std::array<Eigen::Vector3f, 4> waypoints_;
 
   // PID Gains
-  const float Kp_ = 1.2;
-  const float Ki_ = 0.02, int_limit_ = 5.0;
-  const float Kd_ = 0.5;
-  const float max_lin_vel_ = 0.5;
-  const float max_ang_vel_ = 0.8;
+  const float Kp_ = 0.7;
+  const float Ki_ = 0.01, int_limit_ = 5.0;
+  const float Kd_ = 0.4;
+  const float max_lin_vel_ = 0.28;
+  const float max_ang_vel_ = 0.6;
 };
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
 
   // Check if a scene number argument is provided
-  int scene_number = 1; // Default scene number to simulation
+  int scene_number = 2; // Default scene number to real world
   if (argc > 1) {
     scene_number = std::atoi(argv[1]);
   }
