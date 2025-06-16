@@ -26,6 +26,7 @@ public:
         200ms, std::bind(&DistanceController::executeCallback, this));
 
     SelectWaypoints();
+    clock_ = std::make_shared<rclcpp::Clock>(RCL_ROS_TIME);
   }
 
 private:
@@ -34,31 +35,25 @@ private:
     switch (scene_number_) {
     case 1: // Simulation
       waypoints_ = {{
-          {0.0, 0.0, 0.0},      // w1
-          {0.475, -0.01, 0.0},  // w2
-          {0.509, -1.315, 0.0}, // w3
-          {0.475, -0.01, 0.0},  // w4
-          {0.0, 0.0, 0.0},      // w5
+          {0.0, 1.0, 0.0},   // w1
+          {0.0, -1.0, 0.0},  // w2
+          {0.0, -1.0, 0.0},  // w3
+          {0.0, 1.0, 0.0},   // w4
+          {1.0, 1.0, 0.0},   // w5
+          {-1.0, -1.0, 0.0}, // w6
+          {1.0, -1.0, 0.0},  // w7
+          {-1.0, 1.0, 0.0},  // w8
+          {1.0, 0.0, 0.0},   // w9
+          {-1.0, 0.0, 0.0},  // w10
       }};
       break;
 
     case 2: // CyberWorld
       waypoints_ = {{
-          {0.0, 0.0, 0.0},   // w1
-          {1.0, 1.0, 0.0},   // w2
-          {1.0, 1.0, 0.0},   // w3
-          {1.0, -1.0, 0.0},  // w4
-          {-1.0, -1.0, 0.0}, // w5
-          {0.0, 1.0, 0.0},   // w6
-          {-1.0, 1.0, 0.0},  // w7
-          {0.0, -1.0, 0.0},  // w8
-          {1.0, -1.0, 0.0},  // w9
-          {-1.0, -1.0, 0.0}, // w10
-          {-1.0, 1.0, 0.0},  // w11
-          {-1.0, 1.0, 0.0},  // w12
-          {-1.0, -1.0, 0.0}, // w13
-          {-1.0, 1.0, 0.0},  // w14
-          {-1.0, -1.0, 0.0}  // w15
+          {0.475, -0.02, 0.0},  // w1
+          {0.035, -1.255, 0.0}, // w2
+          {-0.035, 1.255, 0.0}, // w3
+          {-0.475, 0.02, 0.0},  // w4
       }};
       break;
 
@@ -121,27 +116,37 @@ private:
       target_wp_++;
 
       if (target_wp_ >= waypoints_.size()) {
-        RCLCPP_INFO(this->get_logger(), "Maze finished!");
+        RCLCPP_INFO(this->get_logger(), "Final waypoint reached!");
         rclcpp::shutdown();
       } else {
         // Start the pause timer
         pause_time_ = clock_->now();
         paused_ = true;
-        RCLCPP_INFO(this->get_logger(), "Stopping briefly...");
+        RCLCPP_INFO(this->get_logger(),
+                    "Waypoint reached, stopping briefly...");
       }
       return;
     }
 
     // PID Controller (Proportional + Integral + Derivative)
+
     integral_error_ += error_pose; // Sum of errors over time
+    integral_error_(0) =
+        std::clamp(integral_error_(0), -int_limit_, int_limit_);
+    integral_error_(1) =
+        std::clamp(integral_error_(1), -int_limit_, int_limit_);
+    integral_error_(2) =
+        std::clamp(integral_error_(2), -int_limit_, int_limit_);
+
     Eigen::Vector3f V = Kp_ * error_pose + Kd_ * (error_pose - prev_error_) +
                         Ki_ * integral_error_;
     prev_error_ = error_pose; // for next iteration
 
+    // Publish velocities
     auto cmd_vel = geometry_msgs::msg::Twist();
-    cmd_vel.linear.x = V(0);
-    cmd_vel.linear.y = V(1);
-    cmd_vel.angular.z = V(2);
+    cmd_vel.linear.x = std::clamp(V(0), -max_lin_vel_, max_lin_vel_);
+    cmd_vel.linear.y = std::clamp(V(1), -max_lin_vel_, max_lin_vel_);
+    cmd_vel.angular.z = std::clamp(V(2), -max_ang_vel_, max_ang_vel_);
     twist_pub_->publish(cmd_vel);
   }
 
@@ -157,12 +162,14 @@ private:
   Eigen::Vector3f target_pose_{0.0, 0.0, 0.0};
   Eigen::Vector3f prev_error_{0.0, 0.0, 0.0};
   Eigen::Vector3f integral_error_{0.0, 0.0, 0.0};
-  std::array<Eigen::Vector3f, 15> waypoints_;
+  std::array<Eigen::Vector3f, 10> waypoints_;
 
   // PID Gains
   const float Kp_ = 1.2;
-  const float Ki_ = 0.1;
-  const float Kd_ = 0.8;
+  const float Ki_ = 0.02, int_limit_ = 5.0;
+  const float Kd_ = 0.5;
+  const float max_lin_vel_ = 0.5;
+  const float max_ang_vel_ = 0.8;
 };
 
 int main(int argc, char **argv) {
